@@ -1,0 +1,3 @@
+Interface between ruby + kdb, modelled on q.py
+https://bitbucket.org/halotis/qpy/src
+Not complete!
