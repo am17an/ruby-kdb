@@ -12,17 +12,31 @@ class Month
   def initialize(x)
     @i = x
   end
+
+  def to_s
+    m = @i + 24000
+    y = m/12
+    "#{y/100}-#{y%100}-#{(m+1)%12}"
+  end
 end
 
 class Minute
   def initialize(x)
     @i = x
   end
+
+  def to_s
+    "#{@i/60}-#{@i%60}"
+  end
 end
 
 class Second
   def initialize(x)
     @i = x
+  end
+
+  def to_s
+    "#{@i/60}-#{@i%60}"
   end
 end
 
@@ -37,8 +51,7 @@ class Dict
     0.upto(@x.length - 1) do |i|
       yield @x[i],@y[i]
     end
-  end
-      
+  end 
 end
 
 class Flip
@@ -57,6 +70,7 @@ class Flip
   end
 end 
 
+# This is a function 
 def td(x)
 
   if x.class == Flip 
@@ -86,8 +100,25 @@ def td(x)
   return Flip.new Dict.new(x,y)
 end
 
-class Qkdb
 
+K = 8640000 * 10957
+STDOFFSET = Time.now.utc_offset
+
+class Qkdb
+  
+  @@reconnect_attempts = 5
+  @@reconnect_wait = 5000
+  @@max_msg_query_length = 1024
+  @@max_msg_list_length = 100
+  @little_endian = false
+
+  def lg(x)
+    return x + STDOFFSET
+  end
+
+  def gl(x)
+    return x - STDOFFSET
+  end
   def initialize(host, port, login)
     @host = host
     @port = port
@@ -134,7 +165,9 @@ class Qkdb
 
   def _recv_from_server
     header = @sock.recv(8)
-    data_size = header[4..7].unpack("i<")[0]
+    @little_endian = header[0].unpack('c')[0] == 1
+    @offset = 4
+    data_size = _ri(header);
     inputBytes = recv_size data_size - 8
     if inputBytes.unpack('b')[0] == -128
       @offset = 1
@@ -145,7 +178,6 @@ class Qkdb
   end 
 
   def recv_size(size)
-    puts "Going to recieve #{size}"
     total_len = 0
     total_data = Array.new
     data_size = [8192,size].min
@@ -157,6 +189,7 @@ class Qkdb
 
     total_data.join('')
   end
+
   def _nx(x)
     qtype = _qtype(x)
 
@@ -231,7 +264,14 @@ class Qkdb
     message += _wc(x,message)
     message
   end
-
+  
+  def _endian_decide(fmt)
+    if @little_endian == true
+       fmt
+    else
+      fmt+'>'
+    end
+  end
 
   def _rb(bytearray)
     val = bytearray[@offset].unpack("c")[0]
@@ -246,49 +286,51 @@ class Qkdb
   end
 
   def _ri(bytearray)
-    val = bytearray[@offset..@offset+3].unpack("i")[0]
+    val = bytearray[@offset..@offset+3].unpack(_endian_decide("i"))[0]
     @offset += 4
     val
   end
 
   def _rd(bytearray)
-   
+   val = bytearray[@offset..@offset+3].unpack(_endian_decide("i"))[0] 
    @offset += 4 
-   
+   val 
   end
 
   def _rt(bytearray)
-    val = bytearray[@offset..@offset+3].unpack("i")[0]
+    val = bytearray[@offset..@offset+3].unpack(_endian_decide("i"))[0]
     @offset += 4
-    val = 86400000*val
-    #do something with date
+    val
   end
 
   def _rdt(bytearray)
+    val = bytearray[@offset..@offset+7].unpack(_endian_decide("d"))[0]
     @offset += 8
+    val
   end
   
   def _re(bytearray)
-    val = bytearray[@offset..@offset+3].unpack('e')
+    val = bytearray[@offset..@offset+3].unpack(_endian_decide("e"))[0]
     @offset += 4
     val
   end
 
   def _rj(bytearray)
-    val = bytearray[@offset..@offset+7].unpack('q')
-    
+    val = bytearray[@offset..@offset+7].unpack(_endian_decide("q"))[0]
     @offset += 8
     val
   end
 
   def _rf(bytearray)
-    val = bytearray[@offset..@offset+7].unpack('d')[0]
+    val = bytearray[@offset..@offset+7].unpack(_endian_decide("d"))[0]
     @offset += 8
     val
   end
 
   def _rh(bytearray)
+    val = bytearray[@offset..@offset+1].unpack(_endian_decide("s"))[0]
     @offset += 2
+    val
   end
 
   def _rs(bytearray)
@@ -381,3 +423,4 @@ class Qkdb
     val
   end
 end
+
